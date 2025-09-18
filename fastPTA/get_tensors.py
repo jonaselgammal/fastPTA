@@ -12,6 +12,7 @@ import fastPTA.pulsar_noises as pn
 import fastPTA.data.datastream as gds
 from fastPTA.angular_decomposition import spherical_harmonics as spha
 from fastPTA.generate_new_pulsar_configuration import generate_pulsars_catalog
+from fastPTA.transmission_functions import *
 
 # Set the device
 jax.config.update("jax_default_device", jax.devices(ut.which_device)[0])
@@ -63,7 +64,7 @@ HD_value = HD_correlations(x)
 
 
 @jax.jit
-def transmission_function(frequencies, T_obs):
+def transmission_function_approx(frequencies, T_obs):
     """
     Compute the transmission function (see Eq. 3 of 2404.02864), which
     represents the attenuation of signals, for some frequencies given the
@@ -86,9 +87,60 @@ def transmission_function(frequencies, T_obs):
 
     return 1 / (1 + 1 / (frequencies * T_obs) ** 6)
 
+@jax.jit
+def transmission_function_quadratic(frequencies, T_obs):
+    """
+    Compute the transmission function (see App. C of 2507.18593), which
+    gives the attenuation of signals, for a quadratic spindown timing model.
+
+    Parameters:
+    -----------
+    frequencies : Array
+        Array of frequencies (in Hz).
+    T_obs : float
+        Observation time (in seconds).
+
+    Returns:
+    --------
+    transmission : Array
+        Array of transmission values computed for the given frequencies and
+        observation time.
+
+    """
+    f = frequencies * T_obs
+    return (1. - (jnp.sin(jnp.pi*f)/(jnp.pi*f))**2
+            - (jnp.sqrt(3)/(2*jnp.pi) * (-2 * jnp.sin(jnp.pi*f)/(jnp.pi*f**2) + 2*jnp.cos(jnp.pi*f)/f))**2
+            - (jnp.sqrt(5)/(-4*jnp.pi**2) * (12*jnp.sin(jnp.pi*f) / (jnp.pi*f**3) -12*jnp.cos(jnp.pi*f) / f**2 - 4*jnp.pi*jnp.sin(jnp.pi*f)/f))**2)
 
 @jax.jit
-def get_time_tensor(frequencies, pta_span_yrs, Tspan_yr):
+def transmission_function_quadratic_1yr_peak(frequencies, T_obs):
+    """
+    Compute the transmission function (see App. C of 2507.18593), which
+    gives the attenuation of signals, for a quadratic spindown timing model,
+    reproducing the one year peak due to the Earth orbit.
+
+    Parameters:
+    -----------
+    frequencies : Array
+        Array of frequencies (in Hz).
+    T_obs : float
+        Observation time (in seconds).
+
+    Returns:
+    --------
+    transmission : Array
+        Array of transmission values computed for the given frequencies and
+        observation time.
+
+    """
+    f = frequencies * T_obs
+    return (1. - (jnp.sin(jnp.pi*f)/(jnp.pi*f))**2
+            - (jnp.sqrt(3)/(2*jnp.pi) * (-2 * jnp.sin(jnp.pi*f)/(jnp.pi*f**2) + 2*jnp.cos(jnp.pi*f)/f))**2
+            - (jnp.sqrt(5)/(-4*jnp.pi**2) * (12*jnp.sin(jnp.pi*f) / (jnp.pi*f**3) -12*jnp.cos(jnp.pi*f) / f**2 - 4*jnp.pi*jnp.sin(jnp.pi*f)/f))**2
+            - (0.99 * jnp.sinc((frequencies - ut.f_yr)*T_obs))**2)
+
+@jax.jit
+def get_time_tensor(pta_span_yrs, Tspan_yr, transmission):
     """
     Computes the time tensor (i.e., the part of the response depending on the
     observation times) for given frequencies and observation times.
@@ -116,12 +168,7 @@ def get_time_tensor(frequencies, pta_span_yrs, Tspan_yr):
     time_1, time_2 = jnp.meshgrid(Tspan_yr, Tspan_yr)
     # pick the minimium time in each pair
     time_IJ = jnp.min(jnp.array([time_1, time_2]), axis=0)
-
-    # Compute the transmission function for all times and frequencies
-    transmission = transmission_function(
-        frequencies[:, None], (Tspan_yr * ut.yr)[None, :]
-    )
-
+        
     # Build the tensor product of the two transimission function
     transmission_tensor = transmission[:, :, None] * transmission[:, None, :]
 
@@ -761,6 +808,7 @@ def get_tensors(
     frequencies,
     path_to_pulsar_catalog=ut.path_to_default_pulsar_catalog,
     pta_span_yrs=10.33,
+    timing_model="approx",
     add_curn=False,
     HD_order=0,
     HD_basis="legendre",
@@ -889,8 +937,22 @@ def get_tensors(
     # convert the noise in strain and then omega units
     strain_omega = pn.get_noise_omega(frequencies, noise)
 
+    # compute the transmission function for all times and frequencies
+    if timing_model == "approx":
+        transmission = transmission_function_approx(
+        frequencies[:, None], (Tspan_yr * ut.yr)[None, :]
+    )
+    elif timing_model == "quadratic":
+        transmission = transmission_function_quadratic(
+        frequencies[:, None], (Tspan_yr * ut.yr)[None, :]
+    )
+    elif timing_model == "quadratic+1yr":
+        transmission = transmission_function_quadratic_1yr_peak(
+        frequencies[:, None], (Tspan_yr * ut.yr)[None, :]
+    )
+
     # get the time tensor
-    time_tensor_IJ = get_time_tensor(frequencies, pta_span_yrs, Tspan_yr)
+    time_tensor_IJ = get_time_tensor(pta_span_yrs, Tspan_yr, transmission)
 
     # compute angular separations
     zeta_IJ = jnp.einsum("ik, jk->ij", pi_vec, pi_vec)
