@@ -70,12 +70,12 @@ def get_time_tensor(pta_span_yrs, Tspan_yr, transmission):
 
     Parameters:
     -----------
-    frequencies : Array
-        Array of frequencies.
     pta_span_yrs : float
         Average span of the PTA data in years.
     Tspan_yr : float
         Time span for individual pulsars in years.
+    transmission : Array
+        Array of transmission functions per pulsar.
 
     Returns:
     --------
@@ -758,6 +758,10 @@ def get_tensors(
     pta_span_yrs : float, optional
         Average span of the PTA data in years.
         Default is 10.33 years.
+    timing_model : string
+        String specifying the transmission function to use.
+        Options are "approx", "quadratic" and "quadratic+1yr".
+        Default is "approx".
     add_curn : bool, optional
         Whether to add common (spatially) uncorrelated red noise (CURN).
         Default is False.
