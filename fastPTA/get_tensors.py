@@ -758,7 +758,7 @@ def get_tensors(
     pta_span_yrs : float, optional
         Average span of the PTA data in years.
         Default is 10.33 years.
-    timing_model : string
+    timing_model : str, optional
         String specifying the transmission function to use.
         Options are "approx", "quadratic" and "quadratic+1yr".
         Default is "approx".
