@@ -12,7 +12,7 @@ import fastPTA.pulsar_noises as pn
 import fastPTA.data.datastream as gds
 from fastPTA.angular_decomposition import spherical_harmonics as spha
 from fastPTA.generate_new_pulsar_configuration import generate_pulsars_catalog
-from fastPTA.transmission_functions import *
+import fastPTA.transmission_functions as tf
 
 # Set the device
 jax.config.update("jax_default_device", jax.devices(ut.which_device)[0])
@@ -62,6 +62,7 @@ def HD_correlations(zeta_IJ):
 x = jnp.linspace(-1.0, 1.0, integration_points)
 HD_value = HD_correlations(x)
 
+
 @jax.jit
 def get_time_tensor(pta_span_yrs, Tspan_yr, transmission):
     """
@@ -91,7 +92,7 @@ def get_time_tensor(pta_span_yrs, Tspan_yr, transmission):
     time_1, time_2 = jnp.meshgrid(Tspan_yr, Tspan_yr)
     # pick the minimium time in each pair
     time_IJ = jnp.min(jnp.array([time_1, time_2]), axis=0)
-        
+
     # Build the tensor product of the two transimission function
     transmission_tensor = transmission[:, :, None] * transmission[:, None, :]
 
@@ -731,7 +732,7 @@ def get_tensors(
     frequencies,
     path_to_pulsar_catalog=ut.path_to_default_pulsar_catalog,
     pta_span_yrs=10.33,
-    timing_model="approx",
+    timing_model={"which_model": "approx"},
     add_curn=False,
     HD_order=0,
     HD_basis="legendre",
@@ -758,10 +759,20 @@ def get_tensors(
     pta_span_yrs : float, optional
         Average span of the PTA data in years.
         Default is 10.33 years.
-    timing_model : str, optional
-        String specifying the transmission function to use.
-        Options are "approx", "quadratic" and "quadratic+1yr".
-        Default is "approx".
+    timing_model : dictionary, optional
+        Dictionary specifying the transmission function to use.
+        Default is {"which_model" : "approx"}.
+        There must be a "which_model" key whose value should be a string.
+        There are four options:
+        "approx", "quadratic", "quadratic+1yr" and "matrix".
+        For the first three options no additional keys are needed.
+        If "matrix" is chosen, two additional keys are needed:
+        "time_of_arrivals" : list of arrays with the time of arrivals for each
+        pulsar in seconds.
+        "design_matrices" : list of 2D arrays with the design matrices for each
+        pulsar.
+        NB!! The "matrix" option can be very memory intensive for large
+        pulsar catalogs.
     add_curn : bool, optional
         Whether to add common (spatially) uncorrelated red noise (CURN).
         Default is False.
@@ -865,18 +876,29 @@ def get_tensors(
     strain_omega = pn.get_noise_omega(frequencies, noise)
 
     # compute the transmission function for all times and frequencies
-    if timing_model == "approx":
-        transmission = transmission_function_approx(
-        frequencies[:, None], (Tspan_yr * ut.yr)[None, :]
-    )
-    elif timing_model == "quadratic":
-        transmission = transmission_function_quadratic(
-        frequencies[:, None], (Tspan_yr * ut.yr)[None, :]
-    )
-    elif timing_model == "quadratic+1yr":
-        transmission = transmission_function_quadratic_1yr_peak(
-        frequencies[:, None], (Tspan_yr * ut.yr)[None, :]
-    )
+    if timing_model["which_model"].lower() == "approx":
+        transmission = tf.transmission_function_approx(
+            frequencies[:, None], (Tspan_yr * ut.yr)[None, :]
+        )
+    elif timing_model["which_model"].lower() == "quadratic":
+        transmission = tf.transmission_function_quadratic(
+            frequencies[:, None], (Tspan_yr * ut.yr)[None, :]
+        )
+    elif timing_model["which_model"].lower() == "quadratic+1yr":
+        transmission = tf.transmission_function_quadratic_1yr_peak(
+            frequencies[:, None], (Tspan_yr * ut.yr)[None, :]
+        )
+    elif timing_model["which_model"].lower() == "matrix":
+        transmission = tf.transmission_function_matrix(
+            frequencies,
+            timing_model["time_of_arrivals"],
+            timing_model["design_matrices"],
+        )
+    else:
+        raise ValueError(
+            'timing_model["which_model"] must be "approx", "quadratic",'
+            ' "quadratic+1yr" or "matrix"'
+        )
 
     # get the time tensor
     time_tensor_IJ = get_time_tensor(pta_span_yrs, Tspan_yr, transmission)

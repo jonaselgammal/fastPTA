@@ -30,6 +30,7 @@ def transmission_function_approx(frequencies, T_obs):
 
     return 1 / (1 + 1 / (frequencies * T_obs) ** 6)
 
+
 @jax.jit
 def transmission_function_quadratic(frequencies, T_obs):
     """
@@ -50,10 +51,29 @@ def transmission_function_quadratic(frequencies, T_obs):
         observation time.
 
     """
-    f = frequencies * T_obs
-    return (1. - (jnp.sin(jnp.pi*f)/(jnp.pi*f))**2
-            - (jnp.sqrt(3)/(2*jnp.pi) * (-2 * jnp.sin(jnp.pi*f)/(jnp.pi*f**2) + 2*jnp.cos(jnp.pi*f)/f))**2
-            - (jnp.sqrt(5)/(-4*jnp.pi**2) * (12*jnp.sin(jnp.pi*f) / (jnp.pi*f**3) -12*jnp.cos(jnp.pi*f) / f**2 - 4*jnp.pi*jnp.sin(jnp.pi*f)/f))**2)
+    x = frequencies * T_obs
+    pix = jnp.pi * x
+
+    first_term = (jnp.sin(pix) / (pix)) ** 2
+
+    second_term = (
+        jnp.sqrt(3)
+        / (2 * jnp.pi)
+        * (-2 * jnp.sin(pix) / (pix**2) + 2 * jnp.cos(pix) / x)
+    ) ** 2
+
+    third_term = (
+        jnp.sqrt(5)
+        / (-4 * jnp.pi**2)
+        * (
+            12 * jnp.sin(pix) / (pix**3)
+            - 12 * jnp.cos(pix) / x**2
+            - 4 * jnp.pi * jnp.sin(pix) / x
+        )
+    ) ** 2
+
+    return 1.0 - first_term - second_term - third_term
+
 
 @jax.jit
 def transmission_function_quadratic_1yr_peak(frequencies, T_obs):
@@ -76,8 +96,25 @@ def transmission_function_quadratic_1yr_peak(frequencies, T_obs):
         observation time.
 
     """
-    f = frequencies * T_obs
-    return (1. - (jnp.sin(jnp.pi*f)/(jnp.pi*f))**2
-            - (jnp.sqrt(3)/(2*jnp.pi) * (-2 * jnp.sin(jnp.pi*f)/(jnp.pi*f**2) + 2*jnp.cos(jnp.pi*f)/f))**2
-            - (jnp.sqrt(5)/(-4*jnp.pi**2) * (12*jnp.sin(jnp.pi*f) / (jnp.pi*f**3) -12*jnp.cos(jnp.pi*f) / f**2 - 4*jnp.pi*jnp.sin(jnp.pi*f)/f))**2
-            - (0.99 * jnp.sinc((frequencies - ut.f_yr)*T_obs))**2)
+
+    transmission = transmission_function_quadratic(frequencies, T_obs)
+
+    year_peak = (0.99 * jnp.sinc((frequencies - ut.f_yr) * T_obs)) ** 2
+
+    return transmission - year_peak
+
+
+@jax.jit
+def get_tf(f, t, Mmat):
+
+    N, m = jnp.shape(Mmat)
+    U, _, _ = jnp.linalg.svd(Mmat)
+    G = U[:, m:]
+
+    exp = jnp.exp(jnp.einsum("f,t->ft", f, 2.0j * jnp.pi * t))
+
+    G_exp = jnp.einsum("ta,ft->fta", G, exp)
+
+    GG = jnp.real(jnp.einsum("fta,fwa->f", G_exp, jnp.conj(G_exp))) / N
+
+    return GG
