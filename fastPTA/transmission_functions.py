@@ -1,6 +1,7 @@
 # Global
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 # Local
 import fastPTA.utils as ut
@@ -107,14 +108,33 @@ def transmission_function_quadratic_1yr_peak(frequencies, T_obs):
 @jax.jit
 def get_tf(f, t, Mmat):
 
+    """
+    Compute the transmission function from a given design matrix describing
+    the timing model of the pulsar.
+
+    Parameters:
+    -----------
+    frequencies : Array
+        Array of frequencies (in Hz).
+    T_obs : float
+        Observation time (in seconds).
+    Mmat : Array
+        Design matrix of timing model.
+
+    Returns:
+    --------
+    transmission : Array
+        Array of transmission values computed for the given frequencies and
+        observation time.
+
+    """
+
     N, m = jnp.shape(Mmat)
     U, _, _ = jnp.linalg.svd(Mmat)
     G = U[:, m:]
 
-    exp = jnp.exp(jnp.einsum("f,t->ft", f, 2.0j * jnp.pi * t))
+    exp = jnp.exp(1j * 2*jnp.pi*f[:, None, None] * (t[None, :, None] - t[None, None, :]))
+    mat = jnp.dot(G, G.T)[None, :, :] * exp
+    tf = jnp.real(jnp.sum(mat, axis=(1, 2)) / N)
 
-    G_exp = jnp.einsum("ta,ft->fta", G, exp)
-
-    GG = jnp.real(jnp.einsum("fta,fwa->f", G_exp, jnp.conj(G_exp))) / N
-
-    return GG
+    return tf

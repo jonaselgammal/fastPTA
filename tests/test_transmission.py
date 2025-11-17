@@ -5,6 +5,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+import matplotlib.pyplot as plt
+
 # Local
 import utils as tu
 from fastPTA import transmission_functions as tf
@@ -172,27 +174,23 @@ class TestTransmissionFunctions(unittest.TestCase):
 
         self.assertAlmostEqual(jnp.sum(result - expected), 0, places=10)
 
-    # def test_get_tf_shape(self):
-    #     """Test the shape of get_tf output."""
+    def test_get_tf_shape(self):
+        """Test the shape of get_tf output."""
 
-    #     result = tf.get_tf(self.data["frequencies"], self.t, self.Mmat)
+        result = tf.get_tf(self.data["frequencies"], self.data['t'], self.data['Mmat'])
 
-    #     print(self.data["frequencies"].shape, self.t.shape, self.Mmat.shape)
-    #     print(result.shape)
-    #     print(asdasdas)
+        self.assertEqual(result.shape, self.data["frequencies"].shape)
+        self.assertEqual(len(result), len(self.data["frequencies"]))
 
-    #     self.assertEqual(result.shape, self.data["frequencies"].shape)
-    #     self.assertEqual(len(result), len(self.data["frequencies"]))
+    def test_get_tf_values(self):
+        """Test the values of get_tf."""
+        result = tf.get_tf(self.data['frequencies'], self.data['t'], self.data['Mmat'])
 
-    # def test_get_tf_values(self):
-    #     """Test the values of get_tf."""
-    #     result = tf.get_tf(self.data['frequencies'], self.t, self.Mmat)
+        # Check that all values are finite
+        self.assertTrue(jnp.all(jnp.isfinite(result)))
 
-    #     # Check that all values are finite
-    #     self.assertTrue(jnp.all(jnp.isfinite(result)))
-
-    #     # Check that result is real (should be due to the jnp.real call)
-    #     self.assertTrue(jnp.all(jnp.isreal(result)))
+        # Check that result is real (should be due to the jnp.real call)
+        self.assertTrue(jnp.all(jnp.isreal(result)))
 
 
 if __name__ == "__main__":
