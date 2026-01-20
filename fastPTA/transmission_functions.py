@@ -1,7 +1,6 @@
 # Global
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 # Local
 import fastPTA.utils as ut
@@ -35,8 +34,9 @@ def transmission_function_approx(frequencies, T_obs):
 @jax.jit
 def transmission_function_quadratic(frequencies, T_obs):
     """
-    Compute the transmission function (see App. C of 2507.18593), which
-    gives the attenuation of signals, for a quadratic spindown timing model.
+    Compute the transmission function, which gives the attenuation of signals,
+    for a quadratic spindown timing model. The function is based on the
+    derivation in Appendix C of 2507.18593, in particular Eq. C5 using C7.
 
     Parameters:
     -----------
@@ -52,7 +52,11 @@ def transmission_function_quadratic(frequencies, T_obs):
         observation time.
 
     """
+
+    # Compute dimensionless quantity
     x = frequencies * T_obs
+
+    # Multiply by pi
     pix = jnp.pi * x
 
     first_term = (jnp.sin(pix) / (pix)) ** 2
@@ -107,6 +111,27 @@ def transmission_function_quadratic_1yr_peak(frequencies, T_obs):
 
 @jax.jit
 def get_tf(f, t, Mmat):
+    """
+    Compute the transmission function matrix given frequencies, times, and
+    design matrix. The transmission function matrix is computing according to
+    the procedure described in 1907.04341.
+
+    Parameters:
+    -----------
+    f : Array
+        Array of frequencies (in Hz).
+    t : Array
+        Array of times (in seconds).
+        Must have shape (...,n_times).
+    Mmat : Array
+        Design matrix.
+        Must have shape (...,n_pulsars, n_times).
+
+    Returns:
+    --------
+    Array
+        Transmission function matrix.
+    """
 
     """
     Compute the transmission function from a given design matrix describing
@@ -131,10 +156,12 @@ def get_tf(f, t, Mmat):
 
     N, m = jnp.shape(Mmat)
     U, _, _ = jnp.linalg.svd(Mmat)
-    G = U[:, m:]
+    G = U[..., m:]
 
-    exp = jnp.exp(1j * 2*jnp.pi*f[:, None, None] * (t[None, :, None] - t[None, None, :]))
-    mat = jnp.dot(G, G.T)[None, :, :] * exp
-    tf = jnp.real(jnp.sum(mat, axis=(1, 2)) / N)
+    exp = jnp.exp(jnp.einsum("f,...t->...tf", f, 2.0j * jnp.pi * t))
 
-    return tf
+    G_exp = jnp.einsum("...ta,...tf->...taf", G, exp)
+
+    GG = jnp.real(jnp.einsum("...taf,...waf->...f", G_exp, jnp.conj(G_exp))) / N
+
+    return GG
