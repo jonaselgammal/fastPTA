@@ -5,7 +5,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-import matplotlib.pyplot as plt
 
 # Local
 import utils as tu
@@ -72,7 +71,9 @@ class TestTransmissionFunctions(unittest.TestCase):
         )
         expected = self.data["transmission_approx_single"]
 
-        self.assertAlmostEqual(jnp.sum(result - expected), 0, places=10)
+        self.assertAlmostEqual(
+            float(jnp.sum(result - expected)), 0.0, places=10
+        )
 
         # Single frequency and vector of T_obs
         result = tf.transmission_function_approx(
@@ -80,7 +81,9 @@ class TestTransmissionFunctions(unittest.TestCase):
         )
         expected = self.data["transmission_approx_tensor"]
 
-        self.assertAlmostEqual(jnp.sum(result - expected), 0, places=10)
+        self.assertAlmostEqual(
+            float(jnp.sum(result - expected)), 0.0, places=10
+        )
 
     def test_transmission_function_quadratic_shape(self):
         """Test the shape of transmission_function_quadratic output."""
@@ -112,15 +115,18 @@ class TestTransmissionFunctions(unittest.TestCase):
         )
         expected = self.data["transmission_quadratic_single"]
 
-        self.assertAlmostEqual(jnp.sum(result - expected), 0, places=10)
-
+        self.assertAlmostEqual(
+            float(jnp.sum(result - expected)), 0.0, places=10
+        )
         # Vector of frequencies and vector of T_obs
         result = tf.transmission_function_quadratic(
             self.data["frequencies"][:, None], self.data["T_obs"][None, :]
         )
         expected = self.data["transmission_quadratic_tensor"]
 
-        self.assertAlmostEqual(jnp.sum(result - expected), 0, places=10)
+        self.assertAlmostEqual(
+            float(jnp.sum(result - expected)), 0.0, places=10
+        )
 
     def test_transmission_function_quadratic_1yr_peak_shape(self):
         """Test the shape of transmission_function_quadratic_1yr_peak output."""
@@ -153,14 +159,17 @@ class TestTransmissionFunctions(unittest.TestCase):
         )
         expected = self.data["transmission_quadratic_1yr_peak_single"]
 
-        self.assertAlmostEqual(jnp.sum(result - expected), 0, places=10)
-
+        self.assertAlmostEqual(
+            float(jnp.sum(result - expected)), 0.0, places=10
+        )
         # Vector of frequencies and vector of T_obs
         result = tf.transmission_function_quadratic_1yr_peak(
             self.data["frequencies"][:, None], self.data["T_obs"][None, :]
         )
         expected = self.data["transmission_quadratic_1yr_peak_tensor"]
-        self.assertAlmostEqual(jnp.sum(result - expected), 0, places=10)
+        self.assertAlmostEqual(
+            float(jnp.sum(result - expected)), 0.0, places=10
+        )
 
     def test_transmission_function_matrix_values(self):
         """Test the values of get_tf."""
@@ -172,19 +181,25 @@ class TestTransmissionFunctions(unittest.TestCase):
         )
         expected = self.data["transmission_matrix_single"]
 
-        self.assertAlmostEqual(jnp.sum(result - expected), 0, places=10)
+        self.assertAlmostEqual(
+            float(jnp.sum(result - expected)), 0.0, places=10
+        )
 
     def test_get_tf_shape(self):
         """Test the shape of get_tf output."""
 
-        result = tf.get_tf(self.data["frequencies"], self.data['t'], self.data['Mmat'])
+        result = tf.get_tf(
+            self.data["frequencies"], self.data["t"], self.data["Mmat"]
+        )
 
         self.assertEqual(result.shape, self.data["frequencies"].shape)
         self.assertEqual(len(result), len(self.data["frequencies"]))
 
     def test_get_tf_values(self):
         """Test the values of get_tf."""
-        result = tf.get_tf(self.data['frequencies'], self.data['t'], self.data['Mmat'])
+        result = tf.get_tf(
+            self.data["frequencies"], self.data["t"], self.data["Mmat"]
+        )
 
         # Check that all values are finite
         self.assertTrue(jnp.all(jnp.isfinite(result)))
